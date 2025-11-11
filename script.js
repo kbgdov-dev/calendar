@@ -491,7 +491,14 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function loadBaseEvents() {
         try {
-            const response = await fetch('events.json');
+            // Добавляем timestamp и параметры для отключения кеширования
+            const response = await fetch(`events.json?t=${Date.now()}`, {
+                cache: 'no-cache',
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                }
+            });
             if (!response.ok) {
                 throw new Error(`Ошибка при загрузке events.json: ${response.status}`);
             }
@@ -520,8 +527,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             // Пытаемся загрузить файл для конкретного года
-            const response = await fetch(`events_${year}.json`);
-            
+            // Добавляем timestamp и параметры для отключения кеширования
+            const response = await fetch(`events_${year}.json?t=${Date.now()}`, {
+                cache: 'no-cache',
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                }
+            });
+
             if (!response.ok) {
                 // Если файл для года не найден, используем базовые события
                 console.log(`📄 Файл events_${year}.json не найден, использую базовые события из events.json`);
