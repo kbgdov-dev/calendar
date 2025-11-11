@@ -130,7 +130,83 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 1.6 Функции для редактирования событий ---
-    
+
+    /**
+     * Сохраняет события на сервер
+     * @param {number} year - Год для сохранения
+     * @param {Array} events - Массив событий для сохранения
+     */
+    async function saveEventsToServer(year, events) {
+        try {
+            console.log('💾 Отправка событий на сервер:', { year, count: events.length });
+
+            const response = await fetch('save_events.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    year: year,
+                    events: events
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ошибка: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(result.message || 'Неизвестная ошибка сервера');
+            }
+
+            console.log('✅ События успешно сохранены на сервере:', result);
+            return true;
+
+        } catch (error) {
+            console.error('❌ Ошибка сохранения на сервер:', error);
+            showToast('Ошибка сохранения: ' + error.message, 'error');
+            return false;
+        }
+    }
+
+    /**
+     * Фильтрует события для конкретного года и сохраняет их на сервер
+     * @param {number} year - Год для сохранения
+     */
+    async function saveEventsForYear(year) {
+        // Фильтруем события для указанного года
+        const yearStr = String(year);
+        const eventsForYear = allEvents.filter(event => {
+            // Проверяем события с полной датой (YYYY-MM-DD)
+            if (event.date.startsWith(yearStr + '-')) {
+                return true;
+            }
+            // Для событий без года (MM-DD) - включаем их во все годы
+            if (event.date.match(/^\d{2}-\d{2}$/)) {
+                // Добавляем год к дате перед сохранением
+                return true;
+            }
+            return false;
+        });
+
+        // Преобразуем события для сохранения
+        const eventsToSave = eventsForYear.map(event => {
+            // Если дата без года (MM-DD), оставляем как есть - это базовое событие
+            // Если дата с годом (YYYY-MM-DD), оставляем полную дату
+            return {
+                title: event.title,
+                date: event.date,
+                time: event.time,
+                color: event.color || '#4A90E2'
+            };
+        });
+
+        console.log(`📤 Сохранение ${eventsToSave.length} событий для ${year} года`);
+        return await saveEventsToServer(year, eventsToSave);
+    }
+
     /**
      * Открывает панель редактирования для указанного события
      */
@@ -197,30 +273,42 @@ document.addEventListener('DOMContentLoaded', () => {
         deleteConfirmModal.classList.add('active');
         
         // Обработчик подтверждения удаления
-        const confirmHandler = () => {
+        const confirmHandler = async () => {
             console.log('🗑️ Удаляю событие:', event);
-            
+
             // Сохраняем дату для обновления
             const eventDate = event.date;
-            
+
             // Удаляем событие из массива
             allEvents.splice(editingEventIndex, 1);
-            
-            console.log('✅ Событие удалено');
-            showToast('Событие успешно удалено', 'success');
-            
+
+            console.log('✅ Событие удалено из массива');
+
+            // Определяем год для сохранения
+            const [year] = eventDate.split('-');
+            const yearToSave = year.length === 4 ? parseInt(year) : currentYear;
+
+            // Сохраняем изменения на сервер
+            const saved = await saveEventsForYear(yearToSave);
+
+            if (saved) {
+                showToast('Событие успешно удалено', 'success');
+            } else {
+                showToast('Событие удалено, но не сохранено на сервер', 'error');
+            }
+
             // Закрываем модалку подтверждения
             deleteConfirmModal.classList.remove('active');
-            
+
             // Закрываем панель редактирования
             closeEditPanel();
-            
+
             // Проверяем, остались ли события на эту дату
             const dateStrShort = eventDate.split('-').slice(-2).join('-');
-            const remainingEvents = allEvents.filter(e => 
+            const remainingEvents = allEvents.filter(e =>
                 e.date === eventDate || e.date === dateStrShort
             );
-            
+
             if (remainingEvents.length === 0) {
                 // Если событий не осталось, закрываем модальное окно
                 hideEventModal();
@@ -228,17 +316,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Обновляем список событий в модальном окне
                 showEventsForDate(eventDate);
             }
-            
+
             // Обновляем календари
             renderYearView(currentYear);
-            
+
             // Определяем месяц удаленного события
-            const [year, month] = eventDate.split('-');
+            const [yearStr, month] = eventDate.split('-');
             const monthIndex = parseInt(month) - 1;
-            renderLargeMonthView(parseInt(year), monthIndex);
-            
+            const eventYear = yearStr.length === 4 ? parseInt(yearStr) : currentYear;
+            renderLargeMonthView(eventYear, monthIndex);
+
             console.log('✅ Календари обновлены после удаления');
-            
+
             // Удаляем обработчики
             confirmDeleteBtn.removeEventListener('click', confirmHandler);
             cancelDeleteBtn.removeEventListener('click', cancelHandler);
@@ -259,19 +348,19 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Сохраняет изменения события или создает новое
      */
-    function saveEventChanges(e) {
+    async function saveEventChanges(e) {
         e.preventDefault();
-        
+
         // Собираем данные из формы
         const title = document.getElementById('edit-title').value.trim();
         const allDay = editAllDayCheckbox.checked;
         const time = allDay ? 'Весь день' : editTimeInput.value;
         const colorInput = document.querySelector('input[name="color"]:checked');
         const color = colorInput ? colorInput.value : '#E74C3C';
-        
+
         // Используем сохраненную дату
         const date = editingEventDate;
-        
+
         // Валидация
         if (!title) {
             showToast('Пожалуйста, введите название события', 'error');
@@ -281,12 +370,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 2000);
             return;
         }
-        
+
         if (!date) {
             showToast('Ошибка: дата события не определена', 'error');
             return;
         }
-        
+
         if (!allDay && !time) {
             showToast('Укажите время события или отметьте "Весь день"', 'error');
             editTimeInput.classList.add('error');
@@ -295,33 +384,32 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 2000);
             return;
         }
-        
+
         // Показываем loader
         const saveButton = editForm.querySelector('.btn-save');
         const originalText = saveButton.textContent;
         saveButton.disabled = true;
         saveButton.textContent = '⏳ Сохранение...';
-        
-        // Имитируем небольшую задержку для UX
-        setTimeout(() => {
+
+        // Выполняем сохранение
+        try {
             if (editingEventIndex === -1) {
                 // Создаем новое событие
                 console.log('➕ Создаю новое событие:', { title, date, time, color });
-                
+
                 const newEvent = {
                     title,
                     date,
                     time,
                     color
                 };
-                
+
                 allEvents.push(newEvent);
-                console.log('✅ Новое событие создано');
-                showToast('Событие успешно создано', 'success');
+                console.log('✅ Новое событие создано в памяти');
             } else {
                 // Обновляем существующее событие
                 console.log('💾 Сохраняю изменения события:', { title, date, time, color });
-                
+
                 allEvents[editingEventIndex] = {
                     ...allEvents[editingEventIndex],
                     title,
@@ -329,31 +417,48 @@ document.addEventListener('DOMContentLoaded', () => {
                     time,
                     color
                 };
-                
-                console.log('✅ Событие обновлено:', allEvents[editingEventIndex]);
-                showToast('Событие успешно обновлено', 'success');
+
+                console.log('✅ Событие обновлено в памяти:', allEvents[editingEventIndex]);
             }
-            
+
+            // Определяем год для сохранения
+            const [year] = date.split('-');
+            const yearToSave = year.length === 4 ? parseInt(year) : currentYear;
+
+            // Сохраняем на сервер
+            const saved = await saveEventsForYear(yearToSave);
+
+            if (saved) {
+                showToast(editingEventIndex === -1 ? 'Событие успешно создано' : 'Событие успешно обновлено', 'success');
+            } else {
+                showToast('Событие сохранено локально, но не на сервере', 'error');
+            }
+
+        } catch (error) {
+            console.error('❌ Ошибка при сохранении:', error);
+            showToast('Ошибка при сохранении события', 'error');
+        } finally {
             // Восстанавливаем кнопку
             saveButton.disabled = false;
             saveButton.textContent = originalText;
-            
+
             // Закрываем панель
             closeEditPanel();
-            
+
             // Обновляем отображение модального окна
             showEventsForDate(date);
-            
+
             // Обновляем календари
             renderYearView(currentYear);
-            
+
             // Определяем месяц события
             const [year, month] = date.split('-');
             const monthIndex = parseInt(month) - 1;
-            renderLargeMonthView(parseInt(year), monthIndex);
-            
+            const eventYear = year.length === 4 ? parseInt(year) : currentYear;
+            renderLargeMonthView(eventYear, monthIndex);
+
             console.log('✅ Календари обновлены');
-        }, 300); // Небольшая задержка для UX
+        }
     }
 
     // --- 2. Инициализация и загрузка данных ---
