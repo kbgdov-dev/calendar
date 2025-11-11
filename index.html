@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивный календарь</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="main-layout">
+
+        <div class="large-month-container">
+            <div id="month-view">
+                <header class="month-header">
+                    <h2 id="month-name"></h2>
+                </header>
+                <div class="calendar-grid" id="large-month-grid">
+                    </div>
+            </div>
+        </div>
+
+        <div class="year-view-container">
+            <header class="calendar-header">
+                <button id="prev-year" title="Предыдущий год">&lt;</button>
+                <input type="number" id="year-input" value="2025" min="1900" max="2100">
+                <button id="next-year" title="Следующий год">&gt;</button>
+            </header>
+
+            <div id="year-info" class="year-info">
+                <!-- Здесь будет информация о годе -->
+            </div>
+
+            <div id="year-view">
+                </div>
+        </div>
+
+    </div>
+
+    <div id="event-modal" class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-content">
+                <button class="modal-close" id="modal-close-btn">&times;</button>
+                <h3 id="modal-date"></h3>
+                <div id="modal-events-list">
+                </div>
+            </div>
+            
+            <!-- Панель редактирования (скрыта по умолчанию) -->
+            <div id="edit-panel" class="edit-panel">
+                <div class="edit-panel-scroll-content">
+                    <div class="edit-panel-header">
+                        <h4>📝 Редактирование события</h4>
+                    </div>
+                    
+                    <form id="edit-form" class="edit-form">
+                        <div class="form-group">
+                            <label for="edit-title">📛 Название события:</label>
+                            <input type="text" id="edit-title" name="title" required placeholder="Введите название">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-time">⏰ Время:</label>
+                            <div class="time-group">
+                                <input type="time" id="edit-time" name="time">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="edit-all-day" name="allDay">
+                                    <span>Весь день</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>🎨 Цвет:</label>
+                            <div class="color-picker" id="color-picker">
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#E74C3C">
+                                    <span class="color-circle" style="background-color: #E74C3C;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#3498DB">
+                                    <span class="color-circle" style="background-color: #3498DB;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#2ECC71">
+                                    <span class="color-circle" style="background-color: #2ECC71;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#F39C12">
+                                    <span class="color-circle" style="background-color: #F39C12;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#9B59B6">
+                                    <span class="color-circle" style="background-color: #9B59B6;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#1ABC9C">
+                                    <span class="color-circle" style="background-color: #1ABC9C;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#E67E22">
+                                    <span class="color-circle" style="background-color: #E67E22;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#95A5A6">
+                                    <span class="color-circle" style="background-color: #95A5A6;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#34495E">
+                                    <span class="color-circle" style="background-color: #34495E;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#16A085">
+                                    <span class="color-circle" style="background-color: #16A085;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#27AE60">
+                                    <span class="color-circle" style="background-color: #27AE60;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#2980B9">
+                                    <span class="color-circle" style="background-color: #2980B9;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#8E44AD">
+                                    <span class="color-circle" style="background-color: #8E44AD;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#C0392B">
+                                    <span class="color-circle" style="background-color: #C0392B;"></span>
+                                </label>
+                                <label class="color-option">
+                                    <input type="radio" name="color" value="#D35400">
+                                    <span class="color-circle" style="background-color: #D35400;"></span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="edit-panel-actions">
+                            <button type="submit" class="btn-save">💾 Сохранить</button>
+                            <button type="button" class="btn-cancel" id="edit-cancel-btn">❌ Отмена</button>
+                            <button type="button" class="btn-delete" id="edit-delete-btn">🗑️ Удалить</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast уведомления -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Модалка подтверждения удаления -->
+    <div id="delete-confirm-modal" class="confirm-modal-overlay">
+        <div class="confirm-modal-content">
+            <h3>🗑️ Удалить событие?</h3>
+            <p>Вы уверены, что хотите удалить это событие? Это действие нельзя отменить.</p>
+            <div class="confirm-modal-actions">
+                <button id="confirm-delete-btn" class="btn-confirm-delete">Удалить</button>
+                <button id="cancel-delete-btn" class="btn-cancel-delete">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
