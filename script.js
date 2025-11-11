@@ -62,8 +62,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let allEvents = []; // Здесь будем хранить все загруженные события
     let baseEvents = []; // Базовые события из events.json
+    let userEvents = []; // Личные события пользователя
     let currentYear; // Текущий выбранный год
     let isLoading = false; // Флаг загрузки
+    let currentUser = null; // Текущий авторизованный пользователь
 
     // Получаем ссылки на DOM-элементы
     const yearInput = document.getElementById('year-input');
@@ -89,7 +91,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const deleteConfirmModal = document.getElementById('delete-confirm-modal');
     const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
     const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
-    
+
+    // Элементы авторизации
+    const loginForm = document.getElementById('login-form');
+    const userInfo = document.getElementById('user-info');
+    const usernameInput = document.getElementById('username-input');
+    const passwordInput = document.getElementById('password-input');
+    const loginBtn = document.getElementById('login-btn');
+    const userDisplayName = document.getElementById('user-display-name');
+    const logoutBtn = document.getElementById('logout-btn');
+
     // Переменная для хранения редактируемого события
     let editingEventIndex = -1;
     let editingEventDate = null; // Храним дату редактируемого события
@@ -129,7 +140,108 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
     }
 
-    // --- 1.6 Функции для редактирования событий ---
+    // --- 1.6 Функции авторизации ---
+
+    /**
+     * Проверяет авторизацию пользователя
+     */
+    async function checkAuth() {
+        try {
+            const response = await fetch('auth.php?action=check');
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                currentUser = result.data;
+                console.log('✅ Пользователь авторизован:', currentUser.displayName);
+            } else {
+                currentUser = null;
+            }
+            updateAuthUI();
+        } catch (error) {
+            console.error('Ошибка проверки авторизации:', error);
+            currentUser = null;
+            updateAuthUI();
+        }
+    }
+
+    /**
+     * Выполняет вход пользователя
+     */
+    async function login() {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+
+        if (!username || !password) {
+            showToast('Введите логин и пароль', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('auth.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            });
+
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                currentUser = result.data;
+                usernameInput.value = '';
+                passwordInput.value = '';
+                showToast(`Добро пожаловать, ${currentUser.displayName}!`, 'success');
+                updateAuthUI();
+                // Перезагружаем события после авторизации
+                await loadCalendarData(currentYear);
+                renderYearView(currentYear);
+                renderLargeMonthView(currentYear, today.getMonth());
+            } else {
+                showToast(result.message || 'Ошибка авторизации', 'error');
+            }
+        } catch (error) {
+            console.error('Ошибка входа:', error);
+            showToast('Ошибка подключения к серверу', 'error');
+        }
+    }
+
+    /**
+     * Выполняет выход пользователя
+     */
+    async function logout() {
+        try {
+            const response = await fetch('auth.php?action=logout');
+            const result = await response.json();
+
+            currentUser = null;
+            showToast('Вы вышли из системы', 'info');
+            updateAuthUI();
+            // Перезагружаем события после выхода (только базовые)
+            await loadCalendarData(currentYear);
+            renderYearView(currentYear);
+            renderLargeMonthView(currentYear, today.getMonth());
+        } catch (error) {
+            console.error('Ошибка выхода:', error);
+            showToast('Ошибка выхода', 'error');
+        }
+    }
+
+    /**
+     * Обновляет UI авторизации
+     */
+    function updateAuthUI() {
+        if (currentUser) {
+            loginForm.style.display = 'none';
+            userInfo.style.display = 'flex';
+            userDisplayName.textContent = currentUser.displayName;
+        } else {
+            loginForm.style.display = 'flex';
+            userInfo.style.display = 'none';
+        }
+    }
+
+    // --- 1.7 Функции для редактирования событий ---
 
     /**
      * Сохраняет события на сервер
@@ -471,17 +583,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const initialDate = new Date();
         currentYear = initialDate.getFullYear();
         yearInput.value = currentYear;
-        
+
+        // Проверяем авторизацию пользователя
+        await checkAuth();
+
         // Сначала загружаем базовые события из events.json
         await loadBaseEvents();
-        
+
         // Затем пытаемся загрузить события для текущего года
         await loadCalendarData(currentYear);
-        
+
         addEventListeners();
-        
+
         // Отрисовываем оба вида
-        renderYearView(currentYear); 
+        renderYearView(currentYear);
         renderLargeMonthView(currentYear, initialDate.getMonth()); // Показываем текущий месяц
         updateYearInfo(currentYear); // Обновляем информацию о годе
     }
@@ -580,7 +695,58 @@ document.addEventListener('DOMContentLoaded', () => {
             allEvents = [...baseEvents];
             console.log('⚠️ Используются базовые события из-за ошибки');
         } finally {
+            // Загружаем личные события пользователя, если он авторизован
+            if (currentUser) {
+                await loadUserEvents();
+            } else {
+                userEvents = [];
+            }
+
             isLoading = false; // Сбрасываем флаг загрузки
+        }
+    }
+
+    /**
+     * Загружает личные события пользователя
+     */
+    async function loadUserEvents() {
+        if (!currentUser) {
+            userEvents = [];
+            return;
+        }
+
+        try {
+            const response = await fetch(`users/${currentUser.username}/events.json?t=${Date.now()}`, {
+                cache: 'no-cache',
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                }
+            });
+
+            if (!response.ok) {
+                console.log(`📄 Файл личных событий пользователя ${currentUser.username} не найден`);
+                userEvents = [];
+                allEvents = [...allEvents]; // Оставляем только базовые события
+                return;
+            }
+
+            const data = await response.json();
+
+            if (!Array.isArray(data)) {
+                throw new Error('Файл не содержит массив событий');
+            }
+
+            userEvents = data;
+            // Объединяем базовые события с личными
+            allEvents = [...allEvents, ...userEvents];
+            console.log(`✅ Загружены личные события пользователя ${currentUser.username}:`, userEvents.length, 'событий');
+            console.log('📊 Всего событий:', allEvents.length);
+
+        } catch (error) {
+            console.error('❌ Ошибка при загрузке личных событий:', error);
+            userEvents = [];
+            // Оставляем только базовые события
         }
     }
 
@@ -872,6 +1038,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeEditPanel();
             }
         });
+
+        // Обработчики авторизации
+        loginBtn.addEventListener('click', login);
+
+        // Обработчик Enter в полях логина и пароля
+        usernameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                login();
+            }
+        });
+
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                login();
+            }
+        });
+
+        logoutBtn.addEventListener('click', logout);
     }
 
     // --- 5. Модальное окно (логика показа/скрытия) ---

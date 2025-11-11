@@ -31,6 +31,22 @@
                 <!-- Здесь будет информация о годе -->
             </div>
 
+            <!-- Блок авторизации -->
+            <div id="auth-container" class="auth-container">
+                <!-- Форма входа (показывается неавторизованным) -->
+                <div id="login-form" class="login-form" style="display: none;">
+                    <input type="text" id="username-input" placeholder="Логин" autocomplete="username">
+                    <input type="password" id="password-input" placeholder="Пароль" autocomplete="current-password">
+                    <button id="login-btn">Войти</button>
+                </div>
+
+                <!-- Информация об авторизованном пользователе -->
+                <div id="user-info" class="user-info" style="display: none;">
+                    <span id="user-display-name"></span>
+                    <button id="logout-btn">Выйти</button>
+                </div>
+            </div>
+
             <div id="year-view">
                 </div>
         </div>
