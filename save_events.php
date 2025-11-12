@@ -85,7 +85,8 @@ if (!is_array($events)) {
     sendResponse(false, 'События должны быть массивом');
 }
 
-// Валидация каждого события
+// Фильтруем события: убираем базовые события (с датами MM-DD) для авторизованных пользователей
+$filteredEvents = [];
 foreach ($events as $index => $event) {
     // Проверяем обязательные поля
     if (!isset($event['title']) || !isset($event['date']) || !isset($event['time'])) {
@@ -106,8 +107,10 @@ foreach ($events as $index => $event) {
     }
 
     // Проверяем формат даты (MM-DD или YYYY-MM-DD)
-    if (!preg_match('/^\d{2}-\d{2}$/', $event['date']) &&
-        !preg_match('/^\d{4}-\d{2}-\d{2}$/', $event['date'])) {
+    $isBaseEvent = preg_match('/^\d{2}-\d{2}$/', $event['date']);
+    $isUserEvent = preg_match('/^\d{4}-\d{2}-\d{2}$/', $event['date']);
+
+    if (!$isBaseEvent && !$isUserEvent) {
         sendResponse(false, "Событие #$index: некорректный формат даты. Ожидается MM-DD или YYYY-MM-DD");
     }
 
@@ -117,11 +120,22 @@ foreach ($events as $index => $event) {
     }
 
     // Защита от XSS - экранируем HTML теги
-    $events[$index]['title'] = htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8');
+    $event['title'] = htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8');
     if (isset($event['time'])) {
-        $events[$index]['time'] = htmlspecialchars($event['time'], ENT_QUOTES, 'UTF-8');
+        $event['time'] = htmlspecialchars($event['time'], ENT_QUOTES, 'UTF-8');
     }
+
+    // Если пользователь авторизован, пропускаем базовые события (MM-DD)
+    // Для личных файлов сохраняем только события с полной датой (YYYY-MM-DD)
+    if (isset($_SESSION['user']) && $isBaseEvent) {
+        continue; // Пропускаем базовое событие
+    }
+
+    $filteredEvents[] = $event;
 }
+
+// Заменяем массив событий на отфильтрованный
+$events = $filteredEvents;
 
 // Определяем путь для сохранения в зависимости от авторизации
 if (isset($_SESSION['user']) && isset($_SESSION['user']['username'])) {
