@@ -3,8 +3,11 @@
  * API для сохранения событий календаря в JSON файлы
  *
  * Принимает POST запросы с JSON данными и сохраняет события
- * в соответствующий файл events_YEAR.json
+ * в соответствующий файл events_YEAR.json или в личную папку пользователя
  */
+
+// Запускаем сессию для проверки авторизации
+session_start();
 
 // Устанавливаем заголовки для JSON ответа
 header('Content-Type: application/json; charset=utf-8');
@@ -120,12 +123,31 @@ foreach ($events as $index => $event) {
     }
 }
 
-// Формируем имя файла
-$filename = __DIR__ . "/events_$year.json";
+// Определяем путь для сохранения в зависимости от авторизации
+if (isset($_SESSION['user']) && isset($_SESSION['user']['username'])) {
+    // Пользователь авторизован - сохраняем в его личную папку
+    $username = $_SESSION['user']['username'];
+    $userDir = __DIR__ . "/users/$username";
+
+    // Проверяем, существует ли папка пользователя
+    if (!is_dir($userDir)) {
+        mkdir($userDir, 0755, true);
+    }
+
+    $filename = $userDir . "/events.json";
+} else {
+    // Пользователь не авторизован - сохраняем в общий файл года
+    $filename = __DIR__ . "/events_$year.json";
+}
 
 // Создаем резервную копию, если файл существует
 if (file_exists($filename)) {
-    $backupFilename = __DIR__ . "/events_$year.backup.json";
+    if (isset($_SESSION['user']) && isset($_SESSION['user']['username'])) {
+        $backupFilename = $userDir . "/events.backup.json";
+    } else {
+        $backupFilename = __DIR__ . "/events_$year.backup.json";
+    }
+
     if (!copy($filename, $backupFilename)) {
         logError("Не удалось создать резервную копию файла $filename");
         sendResponse(false, 'Ошибка создания резервной копии');
@@ -170,8 +192,10 @@ if (json_last_error() !== JSON_ERROR_NONE) {
 }
 
 // Успешно сохранено
+$savedFilename = isset($_SESSION['user']) ? "users/{$_SESSION['user']['username']}/events.json" : "events_$year.json";
+
 sendResponse(true, 'События успешно сохранены', [
     'year' => $year,
     'count' => count($events),
-    'filename' => "events_$year.json"
+    'filename' => $savedFilename
 ]);

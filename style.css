@@ -94,6 +94,75 @@ html, body {
     white-space: nowrap;
 }
 
+/* ===== Блок авторизации ===== */
+.auth-container {
+    padding: 10px 15px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #ddd;
+    background: #fff;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.login-form input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.login-form input:focus {
+    outline: none;
+    border-color: #007aff;
+}
+
+.login-form button {
+    padding: 8px 12px;
+    background: #007aff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.login-form button:hover {
+    background: #0056b3;
+}
+
+.user-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-info span {
+    font-weight: 500;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.user-info button {
+    padding: 6px 12px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.user-info button:hover {
+    background: #c82333;
+}
+
 /* ===== 4. ГОДОВОЙ ВИД (12 маленьких месяцев) ===== */
 #year-view {
     display: grid;
