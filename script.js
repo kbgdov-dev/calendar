@@ -288,25 +288,16 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {number} year - Год для сохранения
      */
     async function saveEventsForYear(year) {
-        // Фильтруем события для указанного года
+        // Фильтруем ТОЛЬКО пользовательские события с полной датой (YYYY-MM-DD) для указанного года
+        // Базовые события (MM-DD) НЕ сохраняем, они остаются только в events.json
         const yearStr = String(year);
         const eventsForYear = allEvents.filter(event => {
-            // Проверяем события с полной датой (YYYY-MM-DD)
-            if (event.date.startsWith(yearStr + '-')) {
-                return true;
-            }
-            // Для событий без года (MM-DD) - включаем их во все годы
-            if (event.date.match(/^\d{2}-\d{2}$/)) {
-                // Добавляем год к дате перед сохранением
-                return true;
-            }
-            return false;
+            // Проверяем события с полной датой (YYYY-MM-DD) для этого года
+            return event.date.startsWith(yearStr + '-');
         });
 
         // Преобразуем события для сохранения
         const eventsToSave = eventsForYear.map(event => {
-            // Если дата без года (MM-DD), оставляем как есть - это базовое событие
-            // Если дата с годом (YYYY-MM-DD), оставляем полную дату
             return {
                 title: event.title,
                 date: event.date,
@@ -315,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         });
 
-        console.log(`📤 Сохранение ${eventsToSave.length} событий для ${year} года`);
+        console.log(`📤 Сохранение ${eventsToSave.length} пользовательских событий для ${year} года`);
         return await saveEventsToServer(year, eventsToSave);
     }
 
@@ -629,7 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Загружает данные о событиях из JSON-файла для конкретного года
-     * Если файл для года не найден, использует базовые события из events.json
+     * Объединяет базовые события из events.json с пользовательскими событиями из events_${year}.json
      */
     async function loadCalendarData(year) {
         // Защита от одновременных загрузок
@@ -637,10 +628,13 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('⏳ Загрузка уже выполняется, пропускаю...');
             return;
         }
-        
+
         isLoading = true;
-        
+
         try {
+            // Начинаем с базовых событий
+            let yearEvents = [];
+
             // Пытаемся загрузить файл для конкретного года
             // Добавляем timestamp и параметры для отключения кеширования
             const response = await fetch(`events_${year}.json?t=${Date.now()}`, {
@@ -652,48 +646,42 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                // Если файл для года не найден, используем базовые события
-                console.log(`📄 Файл events_${year}.json не найден, использую базовые события из events.json`);
-                allEvents = [...baseEvents]; // Копируем базовые события
-                console.log('✅ Используются базовые события:', allEvents.length, 'событий');
-                return; // Выходим, чтобы не было лишних try-catch
-            }
-            
-            // Файл для года найден - пытаемся распарсить JSON
-            try {
-                const data = await response.json();
-                
-                // Проверяем что данные валидны
-                if (!Array.isArray(data)) {
-                    throw new Error('Файл не содержит массив событий');
+                // Если файл для года не найден, используем только базовые события
+                console.log(`📄 Файл events_${year}.json не найден, использую только базовые события`);
+            } else {
+                // Файл для года найден - пытаемся распарсить JSON
+                try {
+                    const data = await response.json();
+
+                    // Проверяем что данные валидны
+                    if (!Array.isArray(data)) {
+                        throw new Error('Файл не содержит массив событий');
+                    }
+
+                    // Если файл не пустой, добавляем события
+                    if (data.length > 0) {
+                        yearEvents = data;
+                        console.log(`📄 Загружен файл events_${year}.json: ${data.length} событий`);
+                    } else {
+                        console.log(`⚠️ Файл events_${year}.json пустой`);
+                    }
+
+                } catch (parseError) {
+                    // Ошибка парсинга JSON (файл поврежден или пустой)
+                    console.error('❌ Ошибка парсинга JSON для года', year, ':', parseError.message);
                 }
-                
-                // Если файл пустой, используем базовые события
-                if (data.length === 0) {
-                    console.log(`⚠️ Файл events_${year}.json пустой, использую базовые события`);
-                    allEvents = [...baseEvents];
-                    console.log('✅ Используются базовые события:', allEvents.length, 'событий');
-                    return;
-                }
-                
-                allEvents = data;
-                console.log(`📄 Загружен файл events_${year}.json`);
-                console.log('✅ События загружены успешно:', allEvents.length, 'событий');
-                
-            } catch (parseError) {
-                // Ошибка парсинга JSON (файл поврежден или пустой)
-                console.error('❌ Ошибка парсинга JSON для года', year, ':', parseError.message);
-                console.log('⚠️ Использую базовые события из-за ошибки парсинга');
-                allEvents = [...baseEvents];
-                console.log('✅ Используются базовые события:', allEvents.length, 'событий');
             }
-            
+
+            // Объединяем базовые события с событиями года
+            allEvents = [...baseEvents, ...yearEvents];
+            console.log(`✅ Всего событий: ${allEvents.length} (базовых: ${baseEvents.length}, за ${year} год: ${yearEvents.length})`);
+
         } catch (error) {
             // Любые другие ошибки (сетевые и т.д.)
             console.error('❌ Ошибка при загрузке событий для года:', error);
-            // В случае ошибки используем базовые события
+            // В случае ошибки используем только базовые события
             allEvents = [...baseEvents];
-            console.log('⚠️ Используются базовые события из-за ошибки');
+            console.log('⚠️ Используются только базовые события из-за ошибки');
         } finally {
             // Загружаем личные события пользователя, если он авторизован
             if (currentUser) {
@@ -727,7 +715,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) {
                 console.log(`📄 Файл личных событий пользователя ${currentUser.username} не найден`);
                 userEvents = [];
-                allEvents = [...allEvents]; // Оставляем только базовые события
                 return;
             }
 
@@ -738,7 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             userEvents = data;
-            // Объединяем базовые события с личными
+            // Объединяем текущие события (базовые + события года) с личными событиями пользователя
             allEvents = [...allEvents, ...userEvents];
             console.log(`✅ Загружены личные события пользователя ${currentUser.username}:`, userEvents.length, 'событий');
             console.log('📊 Всего событий:', allEvents.length);
@@ -746,7 +733,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('❌ Ошибка при загрузке личных событий:', error);
             userEvents = [];
-            // Оставляем только базовые события
         }
     }
 
