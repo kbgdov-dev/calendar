@@ -1,28 +1,31 @@
-# PHP Backend для сохранения событий календаря
+# PHP Backend для календаря
 
 ## Обзор
 
-PHP backend предоставляет REST API для сохранения событий календаря в JSON файлы. Файл `save_events.php` обрабатывает POST запросы от фронтенда и сохраняет события в соответствующий файл `events_YYYY.json`.
+PHP backend предоставляет REST API для:
+- 🔐 Авторизации пользователей (`auth.php`)
+- 💾 Сохранения событий календаря (`save_events.php`)
 
 ## Требования
 
 - PHP 7.0 или выше
 - Веб-сервер (Apache, Nginx и т.д.)
 - Права на запись в директорию проекта
+- Модуль PHP `session`
 
 ## Установка и настройка
 
 ### 1. Настройка прав доступа
 
-Убедитесь, что PHP скрипт имеет права на запись в директорию проекта:
-
 ```bash
 chmod 755 /path/to/calendar
 chmod 644 /path/to/calendar/*.json
+chmod 755 /path/to/calendar/users
+chmod 755 /path/to/calendar/users/*
+chmod 644 /path/to/calendar/users/*/events.json
 ```
 
-Если используется Apache, убедитесь, что пользователь `www-data` имеет права на запись:
-
+Для Apache:
 ```bash
 chown -R www-data:www-data /path/to/calendar
 ```
@@ -31,17 +34,17 @@ chown -R www-data:www-data /path/to/calendar
 
 #### Apache
 
-Убедитесь, что `.htaccess` разрешает выполнение PHP файлов:
+```.htaccess
+<Files "auth.php">
+    Require all granted
+</Files>
 
-```apache
 <Files "save_events.php">
     Require all granted
 </Files>
 ```
 
 #### Nginx
-
-Добавьте location для PHP файлов:
 
 ```nginx
 location ~ \.php$ {
@@ -51,66 +54,143 @@ location ~ \.php$ {
 }
 ```
 
-## API Endpoint
+## API Endpoints
 
-### POST /save_events.php
+### 1. Авторизация (`auth.php`)
 
-Сохраняет события для указанного года.
+#### POST /auth.php - Вход в систему
 
-#### Формат запроса
+**Запрос:**
+```json
+{
+  "username": "anna",
+  "password": "password123"
+}
+```
 
+**Ответ (успех):**
+```json
+{
+  "success": true,
+  "message": "Успешный вход",
+  "data": {
+    "username": "anna",
+    "displayName": "Anna"
+  }
+}
+```
+
+**Ответ (ошибка):**
+```json
+{
+  "success": false,
+  "message": "Неверный логин или пароль"
+}
+```
+
+#### GET /auth.php?action=check - Проверка авторизации
+
+**Ответ (авторизован):**
+```json
+{
+  "success": true,
+  "data": {
+    "username": "anna",
+    "displayName": "Anna"
+  }
+}
+```
+
+**Ответ (не авторизован):**
+```json
+{
+  "success": false,
+  "message": "Пользователь не авторизован"
+}
+```
+
+#### GET /auth.php?action=logout - Выход из системы
+
+**Ответ:**
+```json
+{
+  "success": true,
+  "message": "Выход выполнен"
+}
+```
+
+### 2. Сохранение событий (`save_events.php`)
+
+#### POST /save_events.php - Сохранить события
+
+**Важно:** События сохраняются в разные места в зависимости от авторизации:
+- **Авторизованные пользователи**: `/users/{username}/events.json`
+- **Неавторизованные (инкогнито)**: `events_{year}.json`
+
+**Запрос:**
 ```json
 {
   "year": 2025,
   "events": [
     {
-      "title": "Новый год",
-      "date": "2025-01-01",
-      "time": "Весь день",
-      "color": "#F39C12"
-    },
-    {
       "title": "Встреча",
       "date": "2025-03-15",
       "time": "14:00",
       "color": "#3498DB"
+    },
+    {
+      "title": "День рождения",
+      "date": "2025-05-20",
+      "time": "Весь день",
+      "color": "#E74C3C"
     }
   ]
 }
 ```
 
-#### Параметры запроса
+**Параметры:**
 
 | Параметр | Тип | Обязательный | Описание |
 |----------|-----|--------------|----------|
-| year | number | Да | Год для сохранения событий (1900-2100) |
-| events | array | Да | Массив событий для сохранения |
+| year | number | Да | Год для сохранения (1900-2100) |
+| events | array | Да | Массив событий |
 
-#### Структура события
+**Структура события:**
 
 | Поле | Тип | Обязательное | Описание |
 |------|-----|--------------|----------|
 | title | string | Да | Название события |
-| date | string | Да | Дата в формате MM-DD или YYYY-MM-DD |
+| date | string | Да | Дата в формате YYYY-MM-DD или MM-DD |
 | time | string | Да | Время события или "Весь день" |
-| color | string | Нет | Цвет события в формате #RRGGBB |
+| color | string | Нет | Цвет в формате #RRGGBB |
 
-#### Ответ при успехе
-
+**Ответ (успех, авторизован):**
 ```json
 {
   "success": true,
   "message": "События успешно сохранены",
   "data": {
     "year": 2025,
-    "count": 15,
+    "count": 2,
+    "filename": "users/anna/events.json"
+  }
+}
+```
+
+**Ответ (успех, инкогнито):**
+```json
+{
+  "success": true,
+  "message": "События успешно сохранены",
+  "data": {
+    "year": 2025,
+    "count": 2,
     "filename": "events_2025.json"
   }
 }
 ```
 
-#### Ответ при ошибке
-
+**Ответ (ошибка):**
 ```json
 {
   "success": false,
@@ -118,215 +198,354 @@ location ~ \.php$ {
 }
 ```
 
-#### Коды ответов
+## Архитектура хранения
 
-- `200 OK` - События успешно сохранены
-- `200 OK` (с `success: false`) - Ошибка валидации или сохранения
-- `405 Method Not Allowed` - Использован неправильный HTTP метод
+### Структура файлов
+
+```
+calendar/
+├── auth.php                    # API авторизации
+├── save_events.php             # API сохранения
+├── events.json                 # Базовые события (праздники)
+├── users.json                  # Список пользователей
+├── users/                      # Директория пользователей
+│   ├── anna/
+│   │   ├── events.json         # Личные события Anna
+│   │   └── events.backup.json  # Резервная копия
+│   └── konstantin/
+│       ├── events.json         # Личные события Konstantin
+│       └── events.backup.json  # Резервная копия
+├── events_2025.json            # События 2025 (инкогнито)
+├── events_2025.backup.json     # Резервная копия
+└── error.log                   # Лог ошибок
+```
+
+### Логика фильтрации
+
+#### Базовые события (MM-DD)
+
+События с датами в формате `MM-DD` (например, `01-01`) являются **базовыми** (праздники) и:
+- Хранятся **только** в `events.json`
+- **НЕ сохраняются** в личные файлы пользователей
+- **НЕ сохраняются** в файлы инкогнито
+
+#### Пользовательские события (YYYY-MM-DD)
+
+События с датами в формате `YYYY-MM-DD` (например, `2025-05-15`) являются **пользовательскими** и:
+- Для авторизованных: сохраняются в `/users/{username}/events.json`
+- Для инкогнито: сохраняются в `events_{year}.json`
+
+#### Пример фильтрации
+
+**Входные данные:**
+```json
+[
+  { "date": "01-01", "title": "Новый год" },           // Базовое
+  { "date": "2025-05-15", "title": "Встреча" }         // Пользовательское
+]
+```
+
+**Для авторизованного пользователя Anna:**
+```json
+// Сохраняется в users/anna/events.json
+[
+  { "date": "2025-05-15", "title": "Встреча" }         // Только это
+]
+```
+
+**Для инкогнито:**
+```json
+// Сохраняется в events_2025.json
+[
+  { "date": "2025-05-15", "title": "Встреча" }         // Только это
+]
+```
 
 ## Функции безопасности
 
-### 1. Валидация данных
+### 1. Авторизация
 
-- Проверка типов данных всех полей
-- Проверка формата даты (MM-DD или YYYY-MM-DD)
-- Проверка формата цвета (#RRGGBB)
+- PHP сессии для хранения данных пользователя
+- Проверка логина/пароля из `users.json`
+- Автоматическое создание директорий пользователей
+
+**Примечание:** В продакшене используйте:
+- Хеширование паролей (bcrypt/argon2)
+- JWT токены
+- Rate limiting
+
+### 2. Валидация данных
+
+**save_events.php:**
+- Проверка типов всех полей
+- Валидация формата даты (MM-DD или YYYY-MM-DD)
+- Валидация формата цвета (#RRGGBB)
 - Валидация года (1900-2100)
 - Проверка на пустые значения
 
-### 2. Защита от XSS
+**auth.php:**
+- Проверка обязательных полей
+- Защита от SQL-инъекций (не применимо, т.к. используется JSON)
 
-Все текстовые поля (title, time) экранируются с помощью `htmlspecialchars()` для предотвращения XSS атак.
+### 3. Защита от XSS
 
-### 3. Резервное копирование
+Все текстовые поля экранируются:
+```php
+htmlspecialchars($value, ENT_QUOTES, 'UTF-8')
+```
 
-При каждом сохранении создается резервная копия существующего файла (`events_YYYY.backup.json`). В случае ошибки записи файл восстанавливается из резервной копии.
+### 4. Резервное копирование
 
-### 4. Блокировка файлов
+При каждом сохранении создается резервная копия:
+- `events_{year}.backup.json` (для инкогнито)
+- `/users/{username}/events.backup.json` (для пользователей)
 
-При записи используется флаг `LOCK_EX` для предотвращения одновременной записи в файл несколькими процессами.
+В случае ошибки записи файл восстанавливается из бэкапа.
 
-### 5. Логирование ошибок
+### 5. Блокировка файлов
 
-Все ошибки записываются в файл `error.log` в директории проекта.
+При записи используется `LOCK_EX`:
+```php
+file_put_contents($filename, $data, LOCK_EX);
+```
+
+### 6. Логирование ошибок
+
+Все ошибки записываются в `error.log`:
+```php
+error_log("[$timestamp] $message\n", 3, $logFile);
+```
 
 ## Работа с фронтендом
 
-### Автоматическое сохранение
+### JavaScript интеграция
 
-Фронтенд автоматически отправляет данные на сервер при:
-
-1. Создании нового события
-2. Редактировании существующего события
-3. Удалении события
-
-### Пример использования из JavaScript
+#### Проверка авторизации
 
 ```javascript
-async function saveEventsToServer(year, events) {
-    try {
-        const response = await fetch('save_events.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                year: year,
-                events: events
-            })
-        });
+async function checkAuth() {
+    const response = await fetch('auth.php?action=check');
+    const result = await response.json();
 
-        const result = await response.json();
-
-        if (!result.success) {
-            throw new Error(result.message);
-        }
-
-        console.log('События сохранены:', result);
-        return true;
-
-    } catch (error) {
-        console.error('Ошибка сохранения:', error);
-        return false;
+    if (result.success && result.data) {
+        currentUser = result.data;
+        console.log('Авторизован:', currentUser.displayName);
+    } else {
+        currentUser = null;
     }
 }
 ```
 
-## Структура файлов
+#### Вход в систему
 
+```javascript
+async function login(username, password) {
+    const response = await fetch('auth.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+        currentUser = result.data;
+        showToast(`Добро пожаловать, ${currentUser.displayName}!`, 'success');
+    } else {
+        showToast(result.message, 'error');
+    }
+}
 ```
-calendar/
-├── save_events.php          # PHP backend для сохранения событий
-├── events.json              # Базовые события (праздники)
-├── events_2025.json         # События для 2025 года
-├── events_2025.backup.json  # Резервная копия
-├── error.log                # Лог ошибок
-├── script.js                # Фронтенд код
-└── docs/
-    └── PHP_BACKEND.md       # Эта документация
+
+#### Сохранение событий
+
+```javascript
+async function saveEventsToServer(year, events) {
+    const response = await fetch('save_events.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year, events })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+        console.log('Сохранено:', result.data.filename);
+        return true;
+    } else {
+        console.error('Ошибка:', result.message);
+        return false;
+    }
+}
 ```
 
 ## Устранение неполадок
 
 ### Ошибка: "Ошибка записи файла на сервер"
 
-**Причина:** PHP не имеет прав на запись в директорию.
+**Причина:** Недостаточно прав для записи.
 
 **Решение:**
 ```bash
 chmod 755 /path/to/calendar
-chown www-data:www-data /path/to/calendar
+chmod 755 /path/to/calendar/users
+chmod 755 /path/to/calendar/users/*
 ```
 
 ### Ошибка: "Некорректный формат даты"
 
-**Причина:** Дата передана в неправильном формате.
+**Причина:** Неправильный формат даты.
 
-**Решение:** Используйте формат `MM-DD` (например, `01-15`) или `YYYY-MM-DD` (например, `2025-01-15`).
+**Решение:** Используйте `MM-DD` или `YYYY-MM-DD`.
 
-### Ошибка CORS
+### Ошибка: "Пользователь не авторизован"
 
-**Причина:** Браузер блокирует запросы из-за политики CORS.
+**Причина:** Сессия истекла или не создана.
 
-**Решение:** Убедитесь, что в `save_events.php` установлены правильные заголовки:
+**Решение:**
+- Проверьте, что сессии включены в PHP
+- Убедитесь, что в `php.ini` `session.auto_start = 1` или вызывается `session_start()`
+
+### Проблема: Базовые события дублируются
+
+**Причина:** Старая версия `save_events.php` без фильтрации.
+
+**Решение:** Обновите код до версии 3.0.0 и запустите скрипт очистки.
+
+### CORS ошибки
+
+**Причина:** Браузер блокирует cross-origin запросы.
+
+**Решение:** В обоих PHP файлах уже установлены заголовки:
 ```php
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
-```
-
-### Файл не сохраняется
-
-**Проверьте:**
-1. Права доступа к директории и файлам
-2. Наличие места на диске
-3. Лог ошибок `error.log`
-4. Логи веб-сервера (Apache/Nginx)
-
-```bash
-# Просмотр последних ошибок
-tail -f /path/to/calendar/error.log
-
-# Логи Apache
-tail -f /var/log/apache2/error.log
-
-# Логи Nginx
-tail -f /var/log/nginx/error.log
 ```
 
 ## Тестирование
 
-### Тест с помощью cURL
+### Тест авторизации
 
 ```bash
+# Вход
+curl -X POST http://localhost/calendar/auth.php \
+  -H "Content-Type: application/json" \
+  -d '{"username":"anna","password":"password123"}' \
+  -c cookies.txt
+
+# Проверка
+curl -X GET http://localhost/calendar/auth.php?action=check \
+  -b cookies.txt
+
+# Выход
+curl -X GET http://localhost/calendar/auth.php?action=logout \
+  -b cookies.txt
+```
+
+### Тест сохранения
+
+```bash
+# Сохранение (авторизованный)
 curl -X POST http://localhost/calendar/save_events.php \
   -H "Content-Type: application/json" \
+  -b cookies.txt \
   -d '{
     "year": 2025,
     "events": [
       {
-        "title": "Тестовое событие",
+        "title": "Тест",
         "date": "2025-12-31",
         "time": "23:59",
         "color": "#FF0000"
       }
     ]
   }'
-```
 
-Ожидаемый ответ:
-```json
-{
-  "success": true,
-  "message": "События успешно сохранены",
-  "data": {
+# Сохранение (инкогнито)
+curl -X POST http://localhost/calendar/save_events.php \
+  -H "Content-Type: application/json" \
+  -d '{
     "year": 2025,
-    "count": 1,
-    "filename": "events_2025.json"
-  }
+    "events": [
+      {
+        "title": "Тест инкогнито",
+        "date": "2025-12-31",
+        "time": "23:59",
+        "color": "#00FF00"
+      }
+    ]
+  }'
+```
+
+## Безопасность для продакшена
+
+### 1. Хеширование паролей
+
+```php
+// При создании пользователя
+$hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+
+// При проверке
+if (password_verify($inputPassword, $user['password'])) {
+    // Успешный вход
 }
 ```
 
-## Производительность
+### 2. JWT токены
 
-- Резервное копирование выполняется только при наличии существующего файла
-- Используется блокировка файлов для предотвращения конфликтов
-- JSON форматируется с отступами для удобства чтения
-
-## Безопасность в продакшене
-
-Для использования в продакшене рекомендуется:
-
-1. **Добавить аутентификацию:**
 ```php
-// Проверка токена
-if (!isset($_SERVER['HTTP_AUTHORIZATION'])) {
-    sendResponse(false, 'Требуется аутентификация');
-}
+// Вместо сессий используйте JWT
+$token = generateJWT($user);
+header("Authorization: Bearer $token");
 ```
 
-2. **Ограничить CORS:**
-```php
-// Разрешить только определенные домены
-header('Access-Control-Allow-Origin: https://yourdomain.com');
-```
+### 3. Rate limiting
 
-3. **Добавить rate limiting:**
 ```php
-// Ограничение количества запросов
-if (tooManyRequests()) {
+// Ограничение запросов
+if (tooManyRequests($userId)) {
     http_response_code(429);
     sendResponse(false, 'Слишком много запросов');
 }
 ```
 
-4. **Использовать HTTPS:**
+### 4. HTTPS обязательно
+
 ```apache
 # .htaccess
 RewriteEngine On
 RewriteCond %{HTTPS} off
 RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 ```
+
+### 5. CORS ограничения
+
+```php
+// Разрешить только определенные домены
+$allowed_origins = ['https://yourdomain.com'];
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+
+if (in_array($origin, $allowed_origins)) {
+    header("Access-Control-Allow-Origin: $origin");
+}
+```
+
+## Производительность
+
+- Резервное копирование только при наличии файла
+- Блокировка файлов для предотвращения гонок
+- JSON форматируется с отступами для читабельности
+- Фильтрация базовых событий на уровне PHP
+
+## Миграция с версии 2.x
+
+Если вы обновляетесь с версии 2.x:
+
+1. Обновите `save_events.php` до новой версии
+2. Создайте папку `users/` с правильными правами
+3. Запустите скрипт `cleanup_user_events.php` (если были личные файлы)
+4. Удалите старые файлы `events_{year}.json` если они содержат базовые события
 
 ## Лицензия
 
