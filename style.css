@@ -435,11 +435,15 @@ html, body {
     background: white;
     padding: 25px;
     border-radius: 8px;
-    max-width: 400px;
+    max-width: 550px;
+    min-height: 600px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     position: relative;
     z-index: 10; /* ВСЕГДА ВЫШЕ */
-    
+
     /* Анимация "pop" */
     transform: scale(0.95);
     transition: transform 0.2s ease-in-out;
@@ -472,6 +476,14 @@ html, body {
     font-size: 1.5rem;
     border-bottom: 1px solid #eee;
     padding-bottom: 10px;
+    flex-shrink: 0;
+}
+
+#modal-events-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 450px;
+    padding-right: 5px;
 }
 
 .event-item {
