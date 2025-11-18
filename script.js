@@ -146,6 +146,14 @@ document.addEventListener('DOMContentLoaded', () => {
      * Проверяет авторизацию пользователя
      */
     async function checkAuth() {
+        // Если данные пользователя переданы из PHP
+        if (window.currentUser && window.currentUser.username) {
+            currentUser = window.currentUser;
+            console.log('✅ Пользователь авторизован (PHP):', currentUser.displayName);
+            updateAuthUI();
+            return;
+        }
+
         try {
             const response = await fetch('auth.php?action=check');
             const result = await response.json();
@@ -231,6 +239,11 @@ document.addEventListener('DOMContentLoaded', () => {
      * Обновляет UI авторизации
      */
     function updateAuthUI() {
+        // Проверяем наличие элементов (они могут отсутствовать в PHP-версии)
+        if (!loginForm || !userInfo) {
+            return;
+        }
+
         if (currentUser) {
             loginForm.style.display = 'none';
             userInfo.style.display = 'flex';
@@ -1025,23 +1038,31 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Обработчики авторизации
-        loginBtn.addEventListener('click', login);
+        // Обработчики авторизации (только если элементы существуют)
+        if (loginBtn) {
+            loginBtn.addEventListener('click', login);
+        }
 
         // Обработчик Enter в полях логина и пароля
-        usernameInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                login();
-            }
-        });
+        if (usernameInput) {
+            usernameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    login();
+                }
+            });
+        }
 
-        passwordInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                login();
-            }
-        });
+        if (passwordInput) {
+            passwordInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    login();
+                }
+            });
+        }
 
-        logoutBtn.addEventListener('click', logout);
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', logout);
+        }
     }
 
     // --- 5. Модальное окно (логика показа/скрытия) ---
